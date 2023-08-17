@@ -77,7 +77,7 @@ public class MenuPanel extends JPanel
             try
             {
                 Server gameServer = new Server();
-                Client gameClient = new Client("127.0.0.1","29869",new NetworkPlayer(Color.red,ntf.getText()));
+                Client gameClient = new Client("127.0.0.1","29869",new NetworkPlayer(game.internal.component.Color.RED,ntf.getText(),-1));
                 LobbyPanel lp = new LobbyPanel(mf,self,true);
                 lp.setClient(gameClient);
                 lp.setServer(gameServer);
@@ -101,7 +101,7 @@ public class MenuPanel extends JPanel
         {
             try
             {
-                Client gameClient = new Client(itf.getText(),ptf.getText(),new NetworkPlayer(Color.red,ntf.getText()));
+                Client gameClient = new Client(itf.getText(),ptf.getText(),new NetworkPlayer(game.internal.component.Color.RED,ntf.getText(),-1));
                 LobbyPanel lp = new LobbyPanel(mf,self,false);
                 lp.setClient(gameClient);
                 NetworkThreadHandler.addNetworkInterface(gameClient);

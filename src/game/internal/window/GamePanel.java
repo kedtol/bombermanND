@@ -2,6 +2,7 @@ package game.internal.window;
 
 import game.internal.Game;
 import game.internal.GameTickHandler;
+import game.internal.network.NetworkThreadHandler;
 import game.io.InputHandler;
 
 import javax.swing.*;
@@ -23,6 +24,7 @@ public class GamePanel extends JPanel implements ActionListener
     {
         this.mPanel = mPanel;
         GameTickHandler.loop(game);
+        qb.setFocusable(false);
         qb.addActionListener(new nsAction());
         this.add(qb);
         this.add(InputHandler.bindLabel);
@@ -36,7 +38,7 @@ public class GamePanel extends JPanel implements ActionListener
     public void setGame(Game game)
     {
         this.game = game;
-        GameTickHandler.setGame(game);
+        //GameTickHandler.setGame(game);
     }
 
     @Override
@@ -59,6 +61,8 @@ public class GamePanel extends JPanel implements ActionListener
         public void actionPerformed(ActionEvent arg0)
         {
             setGame(null);
+            NetworkThreadHandler.killNetworkInterfaces();
+
             mf.changePanels(mPanel);
         }
     }

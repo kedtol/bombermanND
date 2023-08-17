@@ -24,6 +24,11 @@ public abstract class GameObject implements Serializable,Interest
         this.image = r.getImage(imageName);
     }
 
+    public String getImageName()
+    {
+        return imageName;
+    }
+
     public void draw(Graphics g, int x, int y)
     {
         if (image != null)

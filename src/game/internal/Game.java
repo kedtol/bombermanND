@@ -1,9 +1,12 @@
 package game.internal;
 
 import game.internal.component.*;
+import game.internal.component.Color;
+import game.internal.network.*;
 import game.io.Bind;
 import game.io.InputHandler;
 import game.io.ResourceLoader;
+
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -11,28 +14,50 @@ import java.io.*;
 import java.util.*;
 import java.util.List;
 
-public class Game
+import static game.internal.network.NetworkPacketType.*;
+
+public class Game implements Serializable
 {
     private List<Entity> entities = Collections.synchronizedList(new ArrayList<>());
     private final ArrayList<Entity> newComers = new ArrayList<>();
-    private Camera camera1;
-    private Camera camera2;
+    private Camera camera1 = null;
+    private Camera camera2 = null;
     private ArrayList<Field> map = new ArrayList<>();
     private int dimensions;
     private boolean gameStarted = false;
-    private final ResourceLoader resourceLoader = new ResourceLoader();
-    private ArrayList<BufferedImage> powerUps;
-    private ArrayList<String> powerUpKeys;
+    private transient ResourceLoader resourceLoader;
+    private transient ArrayList<BufferedImage> powerUps;
+    private transient ArrayList<String> powerUpKeys;
     private int players;
+
+    private transient Server server = null;
+    private transient Client client = null;
+
+    private transient ArrayList<PowerUp> storedPowerUps = new ArrayList<>();
+
+    private transient ArrayList<Field> requestedPowerUps = new ArrayList<>();
 
     public Game()
     {
+        softInit();
+    }
+
+    public void softInit()
+    {
+        client = null;
+        server = null;
+        entities = Collections.synchronizedList(new ArrayList<>());
+        requestedPowerUps = new ArrayList<>();
+        resourceLoader = new ResourceLoader();
         InputHandler inputHandler = new InputHandler();
         inputHandler.bindSetup();
         resourceLoader.loadTextures();
 
+        storedPowerUps = new ArrayList<>();
         powerUps = new ArrayList<>();
         powerUpKeys = new ArrayList<>();
+
+        camera1 = new Camera(null,6,280,300);
 
         powerUpKeys.add("void");
         for (int i = 1; i < 6; i++)
@@ -40,6 +65,9 @@ public class Game
 
         for (String k: powerUpKeys)
             powerUps.add( resourceLoader.getImage(k));
+
+
+
     }
 
     public void save()
@@ -58,6 +86,43 @@ public class Game
             out.close();
         }
         catch(IOException ex) { ex.printStackTrace(); }
+    }
+
+    @Serial
+    private void writeObject(ObjectOutputStream oos)
+            throws IOException {
+        oos.defaultWriteObject();
+        oos.writeObject(map);
+        oos.writeObject(entities);
+        oos.writeObject(camera1);
+        oos.writeObject(camera2);
+        oos.writeObject(dimensions);
+        for (Field field : map)
+            field.serializeNeighbors(oos);
+
+    }
+
+    private void readObject(ObjectInputStream ois)
+            throws ClassNotFoundException, IOException {
+        softInit();
+        ois.defaultReadObject();
+        map = (ArrayList<Field>) ois.readObject();
+        entities = (List<Entity>) ois.readObject();
+        camera1 = (Camera) ois.readObject();
+        camera2 = (Camera) ois.readObject();
+        dimensions = (int) ois.readObject();
+        for (Field field : map)
+        {
+            field.loadNeighbors(ois);
+            field.getGameObjects().forEach(g-> g.setImage(resourceLoader));
+        }
+        //entities.forEach(e-> e.setGame(this));
+        for (Entity e : entities)
+        {
+            e.setGame(this);
+        }
+
+
     }
 
     public void load()
@@ -116,7 +181,7 @@ public class Game
                         else
                             mapArray[i][j].acceptGameObject(new Wall(resourceLoader.getImage("wall_moss"),"wall_moss",true),-1,false);
                     else
-                        mapArray[i][j].acceptGameObject(new Box(resourceLoader.getImage("box"),"box",true,powerUps,powerUpKeys),-1,false);
+                        mapArray[i][j].acceptGameObject(new Box(resourceLoader.getImage("box"),"box",true,powerUps,powerUpKeys,this,mapArray[i][j]),-1,false);
                 map.add(mapArray[i][j]);
             }
         }
@@ -180,7 +245,7 @@ public class Game
                             else
                                 mapArray[i][j][k].acceptGameObject(new Wall(resourceLoader.getImage("wall_moss"),"wall_moss", true),-1,false);
                         else
-                            mapArray[i][j][k].acceptGameObject(new Box(resourceLoader.getImage("box"),"box", true,powerUps,powerUpKeys),-1,false);
+                            mapArray[i][j][k].acceptGameObject(new Box(resourceLoader.getImage("box"),"box", true,powerUps,powerUpKeys,this,mapArray[i][j][k]),-1,false);
                     map.add(mapArray[i][j][k]);
                 }
             }
@@ -255,7 +320,7 @@ public class Game
                                 else
                                     mapArray[i][j][k][l].acceptGameObject(new Wall(resourceLoader.getImage("wall_moss"),"wall_moss", true),-1,false);
                             else
-                                mapArray[i][j][k][l].acceptGameObject(new Box(resourceLoader.getImage("box"),"box", true,powerUps, powerUpKeys),-1,false);
+                                mapArray[i][j][k][l].acceptGameObject(new Box(resourceLoader.getImage("box"),"box", true,powerUps, powerUpKeys,this,mapArray[i][j][k][l]),-1,false);
                         map.add(mapArray[i][j][k][l]);
                     }
                 }
@@ -315,13 +380,54 @@ public class Game
         // a bomba száláról a bomberman eldönti, hogy halott, majd a saját szálán megöli magát.
         if (gameStarted)
         {
+            if (storedPowerUps.size() > 0)
+            {
+                if (requestedPowerUps.size() > 0)
+                {
+                    if (storedPowerUps.get(0) != null)
+                    {
+                        requestedPowerUps.get(0).addGameObject(storedPowerUps.get(0));
+                        requestedPowerUps.get(0).getGameObjects().forEach(g -> g.setImage(resourceLoader));
+                    }
+                    requestedPowerUps.remove(0);
+                    storedPowerUps.remove(0);
+                }
+            }
+
+            int iter = 0;
             synchronized (entities)
             {
-                entities.removeIf(Entity::live);
+
+                Iterator<Entity> i = entities.listIterator();
+
+                while(i.hasNext())
+                {
+                    Entity e = i.next();
+
+                    if (e.live())
+                    {
+                        if (client == null)
+                        {
+                           if (!e.kick(0,true)) // todo: change this type check
+                           {
+                               server.sendPacket(null, new NetworkPacket(CLIENT_KILL_ENTITY, ((Bomberman) e).getNp()));
+                           }
+                       }
+                        //i.remove();
+                    }
+                    iter++;
+                }
+
+
+                //entities.removeIf(Entity::live);
 
                 entities.addAll(newComers);
                 newComers.clear();
             }
+
+            //if (client == null && removed > 0)
+             //   server.sendPacket(null,new NetworkPacket(CLIENT_UPDATE_GAME,this));
+
         }
     }
 
@@ -335,7 +441,7 @@ public class Game
         return dimensions;
     }
 
-    public void addPlayer(int pnumber)
+    public void addPlayer(NetworkPlayer np,boolean controlled)
     {
         Random r = new Random();
         int field = 0;
@@ -345,20 +451,16 @@ public class Game
             field = r.nextInt(map.size());
             placement = map.get(field).spawnPoint();
         }
-        Player player;
+        ArrayList<Bind> binds = null;
 
-        if (pnumber == 0)
-        {
-            ArrayList<Bind> binds = new ArrayList<>(Arrays.asList(Bind.UP,Bind.DOWN,Bind.LEFT,Bind.RIGHT,Bind.PLANT,Bind.ROTATE));
-            player = new Player(resourceLoader.getImage("player_blue"), "player_blue", map.get(field), this,binds);
+        if (controlled)
+            binds = new ArrayList<>(Arrays.asList(Bind.UP, Bind.DOWN, Bind.LEFT, Bind.RIGHT, Bind.PLANT, Bind.ROTATE));
+
+        Color c = np.getColor();
+        Player player = new Player(resourceLoader.getImage(c.getName()), c.getName(), map.get(field), this,binds,np);
+
+        if (controlled) // nagyon szeretlek (am nem fog lefutni)
             camera1 = new Camera(player,6,280,300);
-        }
-        else
-        {
-            ArrayList<Bind> binds = new ArrayList<>(Arrays.asList(Bind.UP2,Bind.DOWN2,Bind.LEFT2,Bind.RIGHT2,Bind.PLANT2,Bind.ROTATE2));
-            player = new Player(resourceLoader.getImage("player_red"), "player_red", map.get(field), this,binds);
-            camera2 = new Camera(player,6,850,300);
-        }
 
         map.get(field).acceptGameObject(player,0,false);
         entities.add(player);
@@ -375,7 +477,7 @@ public class Game
             field = r.nextInt(map.size());
             placement = map.get(field).spawnPoint();
         }
-        Enemy enemy = new Enemy(resourceLoader.getImage("player_gray"),"player_gray",map.get(field),this);
+        Enemy enemy = new Enemy(resourceLoader.getImage("player_ai"),"player_ai",map.get(field),this);
         map.get(field).acceptGameObject(enemy,0,false);
         entities.add(enemy);
         players++;
@@ -388,19 +490,24 @@ public class Game
         if (camera2 != null)
             camera2.draw(g);
 
-        g.setColor(Color.red);
+
+        g.setColor(java.awt.Color.red);
         if (players <= 1)
             g.drawString("GAME OVER!",10,10);
     }
 
-    public Bomb createBomb(Field field,Bomberman b,int size)
+    public Bomb createBomb(Bomberman b)
     {
-        Bomb newBomb = new Bomb(resourceLoader.getImage("bomb"),"bomb",field,this,b,size);
-        if (field.placeBomb(newBomb))
+        if (b != null)
         {
-            newComers.add(newBomb);
-            return newBomb;
+            Bomb newBomb = new Bomb(resourceLoader.getImage("bomb"), "bomb", b.getField(), this, b, b.getBombSize());
+            if (b.getField().placeBomb(newBomb))
+            {
+                newComers.add(newBomb);
+                return newBomb;
+            }
         }
+
         return null;
     }
 
@@ -409,5 +516,117 @@ public class Game
         players--;
     }
 
+    public void setClient(Client client)
+    {
+        this.client = client;
+        client.setGame(this);
+    }
+    public void setServer(Server server)
+    {
+        this.server = server;
+        if (server != null)
+            server.setGame(this);
+    }
+    public void assumeControl()
+    {
+        for (Entity e : entities)
+        {
+            e.setupSync(client);
+            e.getField().addGameObject(e);
 
+        }
+
+
+        for (Field field : map)
+        {
+            field.getGameObjects().forEach(g-> g.setImage(resourceLoader));
+        }
+    }
+    public void requestControl(Player p)
+    {
+        if (client != null)
+        {
+            if (p.getNp().getId() == client.getPlayer().getId())
+            {
+                camera1.setBomberman(p);
+                p.setBinds(new ArrayList<>(Arrays.asList(Bind.UP, Bind.DOWN, Bind.LEFT, Bind.RIGHT, Bind.PLANT, Bind.ROTATE)));
+            }
+        }
+    }
+
+    public void entitySendMovement(Entity e,int axis,boolean positive)
+    {
+        Pair<Integer,Boolean> innerpayload = new Pair<>();
+        innerpayload.left = axis;
+        innerpayload.right = positive;
+        Pair<Integer, Pair<Integer,Boolean>> payload = new Pair<>();
+        payload.left = entities.indexOf(e);
+        payload.right = innerpayload;
+        if (client != null)
+            client.sendPacket(new NetworkPacket(SERVER_REQUESTED_MOVEMENT,payload));
+        else
+            server.sendPacket(null,new NetworkPacket(CLIENT_MOVE,payload));
+    }
+
+    public void entityReceiveMovement(int e,int axis,boolean positive)
+    {
+        entities.get(e).moveNetwork(axis,positive);
+    }
+
+    public void bombermanSendBomb(Bomberman b)
+    {
+        if (client != null)
+            client.sendPacket(new NetworkPacket(SERVER_REQUESTED_BOMB,entities.indexOf(b)));
+        else
+            server.sendPacket(null, new NetworkPacket(CLIENT_PLACE_BOMB,entities.indexOf(b)));
+    }
+
+    public void receiveBomb(int index)
+    {
+        createBomb((Bomberman) entities.get(index));
+    }
+
+    public void updateEntityList(List<Entity> entities)
+    {
+        this.entities = entities;
+    }
+
+
+    public Server getServer()
+    {
+        return server;
+    }
+
+    public void addRequestedPowerUp(Field field)
+    {
+        requestedPowerUps.add(field);
+    }
+
+    public void placePowerUp(PowerUp content)
+    {
+        if (requestedPowerUps.size() > 0)
+        {
+            if (content != null)
+            {
+                requestedPowerUps.get(0).addGameObject(content);
+                requestedPowerUps.get(0).getGameObjects().forEach(g-> g.setImage(resourceLoader));
+                requestedPowerUps.remove(0);
+            }
+        }
+        else
+            storedPowerUps.add(content);
+    }
+
+    public void killEntity(NetworkPlayer id)
+    {
+        synchronized (entities)
+        {
+            for (Entity e : entities)
+            {
+                if (e.getImageName().contains("player")) // todo: change this type check
+                    if (((Player)e).getNp().getId() == id.getId())
+                        e.kill();
+            }
+        }
+    }
 }

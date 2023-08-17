@@ -1,5 +1,7 @@
 package game.internal.window;
 
+import game.internal.Game;
+import game.internal.GameTickHandler;
 import game.internal.network.*;
 
 import javax.swing.*;
@@ -8,12 +10,14 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 
+import static game.internal.network.NetworkPacketType.CLIENT_START_GAME;
+import static game.internal.network.NetworkPacketType.SERVER_REQUESTED_COLOR_CHANGE;
+
 public class LobbyPanel extends JPanel
 {
     private JButton ccButton = new JButton("change color");
 
     private JButton sButton = new JButton("Start");
-    private JComboBox<Integer> pcb = new JComboBox<Integer>(new Integer[]{1,2,3,4,5,6});
     private JComboBox<Integer> ccb = new JComboBox<Integer>(new Integer[]{0,1,2,3,4,5,6});
     private JComboBox<Integer> db = new JComboBox<Integer>(new Integer[]{2,3,4});
     private JComboBox<Integer> sb = new JComboBox<Integer>(new Integer[]{11,21,41});
@@ -39,6 +43,7 @@ public class LobbyPanel extends JPanel
         this.host = host;
         ccButton.addActionListener(new ccAction());
         lButton.addActionListener(new lAction());
+        sButton.addActionListener(new sAction());
         buildPanel();
 
     }
@@ -61,7 +66,7 @@ public class LobbyPanel extends JPanel
         for (NetworkPlayer np : players)
         {
             JLabel nameText = new JLabel(np.getName());
-            nameText.setForeground(np.getColor());
+            nameText.setForeground(np.getColor().getAWT());
             this.add(nameText,gbc);
             gbc.gridy++;
         }
@@ -99,6 +104,11 @@ public class LobbyPanel extends JPanel
         this.repaint();
     }
 
+    public MainFrame getMainFrame()
+    {
+        return mf;
+    }
+
     public void setup()
     {
         NetworkThreadHandler.loop();
@@ -133,12 +143,18 @@ public class LobbyPanel extends JPanel
         }
     }
 
+    public void joinGame(Game game)
+    {
+        game.setClient(client);
+        mf.startNewGame(game);
+    }
+
     class ccAction implements ActionListener
     {
         @Override
         public void actionPerformed(ActionEvent arg0)
         {
-            client.sendPacket(new NetworkPacket(3,false,null));
+            client.sendPacket(new NetworkPacket(SERVER_REQUESTED_COLOR_CHANGE,null));
         }
     }
 
@@ -152,6 +168,40 @@ public class LobbyPanel extends JPanel
             client = null;
             server = null;
             mf.changePanels(mPanel);
+        }
+    }
+
+    class sAction implements ActionListener
+    {
+        @Override
+        public void actionPerformed(ActionEvent arg0)
+        {
+            int dim = (int)db.getSelectedItem();
+            int size = (int)sb.getSelectedItem();
+            int cc = (int)ccb.getSelectedItem();
+
+            Game game = new Game();
+            switch (dim)
+            {
+                case 2 -> game.generateMap(size, size);
+                case 3 -> game.generateMap3d(size, size, size);
+                case 4 -> game.generateMap4d(size, size, size, size);
+            }
+
+            for (NetworkPlayer ne : players)
+                game.addPlayer(ne,false);
+
+            for (int i = 0; i < cc; i++)
+                game.addEnemy();
+
+            server.sendPacket(null,new NetworkPacket(CLIENT_START_GAME,game));
+            game.setServer(server);
+            server.spawnPlayers();
+            game.start();
+            game.assumeControl();
+            GameTickHandler.loop(game);
+
+            //mf.startNewGame(game);
         }
     }
 }

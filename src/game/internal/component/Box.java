@@ -1,20 +1,28 @@
 package game.internal.component;
 
+import game.internal.Game;
+import game.internal.network.NetworkPacket;
 import game.io.ResourceLoader;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Random;
 
+import static game.internal.network.NetworkPacketType.CLIENT_PLACE_POWERUP;
+
 public class Box extends GameObject
 {
     transient private ArrayList<BufferedImage> powerUps;
     final private ArrayList<String> powerUpKeys;
-    public Box(BufferedImage image, String imageName, boolean solid, ArrayList<BufferedImage> powerUps, ArrayList<String> powerUpKeys)
+    private Game game = null;
+    private Field field = null;
+    public Box(BufferedImage image, String imageName, boolean solid, ArrayList<BufferedImage> powerUps, ArrayList<String> powerUpKeys, Game game,Field field)
     {
         super(image, imageName, solid);
         this.powerUps = powerUps;
         this.powerUpKeys = powerUpKeys;
+        this.game = game;
+        this.field = field;
     }
 
     public void setImage(ResourceLoader r)
@@ -30,7 +38,18 @@ public class Box extends GameObject
     @Override
     public GameObject explode()
     {
-        return createPowerUp();
+        PowerUp p = createPowerUp();
+        if (game.getServer() != null)
+        {
+            game.getServer().sendPacket(null, new NetworkPacket(CLIENT_PLACE_POWERUP,p));
+            return p;
+        }
+        else
+        {
+            game.addRequestedPowerUp(field);
+            return null;
+        }
+
     }
 
     @Override

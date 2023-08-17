@@ -1,17 +1,19 @@
 package game.internal.component;
 
 import game.internal.Game;
+import game.internal.network.Client;
 
 import java.awt.image.BufferedImage;
 
 public abstract class Entity extends GameObject
 {
     protected Field field;
-    protected transient Game game;
+    protected Game game;
     private boolean alive = true;
     protected boolean canKick;
     protected final Alarm moveSpeed;
     protected double speed;
+    protected Client client;
 
     Entity(BufferedImage image,String imageName,Field field,Game game)
     {
@@ -29,10 +31,35 @@ public abstract class Entity extends GameObject
         this.game = game;
     }
 
+    public void setupSync(Client client)
+    {
+        this.client = client;
+    }
+
     public void move(int axis, boolean positive)
     {
         if (moveSpeed.isFinished())
         {
+
+            Field next = field.getNeighbor(axis, positive);
+            if (next != null)
+            {
+                if (next.acceptGameObject(this, axis, positive))
+                {
+                    field.removeGameObject(this);
+                    field = next;
+                    onFieldEntry();
+                    game.entitySendMovement(this,axis,positive);
+                    moveSpeed.restart();
+                }
+            }
+        }
+    }
+
+    public void moveNetwork(int axis, boolean positive)
+    {
+        /*if (moveSpeed.isFinished()) // client speed hack <- insert here
+        {*/
             Field next = field.getNeighbor(axis, positive);
             if (next != null)
             {
@@ -44,7 +71,7 @@ public abstract class Entity extends GameObject
                     moveSpeed.restart();
                 }
             }
-        }
+       // }
     }
 
     public boolean collide(GameObject go,int axis,boolean positive)
@@ -92,6 +119,7 @@ public abstract class Entity extends GameObject
     public final void kill()
     {
         alive = false;
+        field.removeGameObject(this);
     }
 
     public abstract boolean kick(int axis,boolean positive);

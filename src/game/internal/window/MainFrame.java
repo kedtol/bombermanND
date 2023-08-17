@@ -1,9 +1,14 @@
 package game.internal.window;
 
 import game.internal.Game;
+import game.internal.GameTickHandler;
+import game.internal.network.Client;
+import game.internal.network.NetworkPlayer;
+import game.internal.network.Server;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.ArrayList;
 
 public class MainFrame extends JFrame
 {
@@ -13,13 +18,16 @@ public class MainFrame extends JFrame
 
     private JPanel currentp;
 
+    private Server server;
+    private Client client;
+
     private Dimension size;
 
     public MainFrame(Dimension size)
     {
         this.size = size;
-        gp = new GamePanel(size,this,mp);
         mp = new MenuPanel(this);
+        gp = new GamePanel(size,this,mp);
         currentp = mp;
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         this.setTitle("Bomberman");
@@ -47,23 +55,11 @@ public class MainFrame extends JFrame
 
     }
 
-    public void startNewGame(int dim,int size, int pc, int cc)
+    public void startNewGame(Game game)
     {
-        Game game = new Game();
-        switch (dim)
-        {
-            case 2 -> game.generateMap(size, size);
-            case 3 -> game.generateMap3d(size, size, size);
-            case 4 -> game.generateMap4d(size, size, size, size);
-        }
-
-        for (int i = 0; i < pc; i++)
-            game.addPlayer(i);
-
-        for (int i = 0; i < cc; i++)
-            game.addEnemy();
-
+        changePanels(gp);
         gp.setGame(game);
+        GameTickHandler.loop(game);
         game.start();
     }
 
@@ -74,7 +70,5 @@ public class MainFrame extends JFrame
         gp.setGame(game);
         game.start();
     }
-
-
 
 }

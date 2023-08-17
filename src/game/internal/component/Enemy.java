@@ -1,6 +1,7 @@
 package game.internal.component;
 
 import game.internal.Game;
+import game.internal.network.Client;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -19,16 +20,24 @@ public class Enemy extends Bomberman
     transient private ArrayList<Field> explored; // known fields
     private boolean escaped = false;
     private boolean freshBombPlaced = false;
+    private boolean ai = false;
 
     public Enemy(BufferedImage image, String imageName, Field field, Game game)
     {
         super(image,imageName, field, game);
     }
 
+    public void setupSync(Client client)
+    {
+        super.setupSync(client);
+        if (client == null)
+            ai = true;
+    }
+
     @Override
     public void tickAction()
     {
-        if (game != null)
+        if (game != null && ai)
             ai();
 
         super.tickAction();

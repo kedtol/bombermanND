@@ -1,15 +1,17 @@
 package game.internal.network;
 
-import game.internal.window.LobbyPanel;
+import game.internal.Game;
+import game.internal.component.Bomberman;
+import game.internal.component.Color;
+import game.internal.component.Field;
+import game.internal.component.FieldPair;
 
-import java.awt.*;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+
+import static game.internal.network.NetworkPacketType.*;
 
 public class Server implements NetworkInterface
 {
@@ -18,9 +20,7 @@ public class Server implements NetworkInterface
     private ServerSocket serverSocket;
     private Thread acceptThread;
     private List<Thread> receiveThreads = new ArrayList<>();
-    private List<Color> colors = List.of(Color.red,Color.blue,Color.gray,Color.green,Color.pink,Color.orange,Color.yellow);
-
-
+    private Game game = null;
     private boolean dead = false;
 
     public Server() throws IOException
@@ -68,7 +68,6 @@ public class Server implements NetworkInterface
                 if (t != null)
                 {
                     t.interrupt();
-                    System.out.println("DOWN");
                 }
             }
             receiveThreads = null;
@@ -130,7 +129,7 @@ public class Server implements NetworkInterface
                                     //receiveThread = null;
                                     synchronized (clients)
                                     {
-                                        sendPacket(client,new NetworkPacket(1,true,null));
+                                        sendPacket(client,new NetworkPacket(CLIENT_INTRODUCE,true,null));
                                         clients.add(client);
                                         clients.notify();
 
@@ -179,15 +178,16 @@ public class Server implements NetworkInterface
                 OutputStream os = c.getOutputStream();
                 ObjectOutputStream oos = new ObjectOutputStream(os);
 
-                oos.writeObject(new NetworkPacket(0, true, "Hello client_id_" + i));
+                oos.writeObject(new NetworkPacket(CLIENT_RECEIVE_STRING, "Hello client_id_" + i));
 
                 i++;
             }
         }
     }
 
-    private void sendPacket(Socket socket, NetworkPacket packet)
+    public void sendPacket(Socket socket, NetworkPacket packet)
     {
+        packet.server = true;
         List<Socket> targets = new ArrayList<>();
         if (socket == null)
             targets.addAll(clients);
@@ -230,7 +230,7 @@ public class Server implements NetworkInterface
                         {
                             while (true)
                             {
-                                System.out.println("SERVER RECEIVE THREAD" + id + " ALIVE");
+                                //System.out.println("SERVER RECEIVE THREAD" + id + " ALIVE");
                                 try
                                 {
                                     sleep(10);
@@ -250,7 +250,7 @@ public class Server implements NetworkInterface
                                     if (receiveThreads != null)
                                     {
                                         killClient(id);
-                                        sendPacket(null, new NetworkPacket(3, true, players));
+                                        sendPacket(null, new NetworkPacket(CLIENT_UPDATE_PLAYERLIST, players));
                                     }
                                     this.interrupt();
                                     e.printStackTrace();
@@ -287,39 +287,94 @@ public class Server implements NetworkInterface
     @Override
     public void packetInterpreter(NetworkPacket packet)
     {
+        NetworkPlayer np;
         if (!packet.server)
         {
-            switch (packet.id)
+            switch (packet.type)
             {
-                case 0: // sending a string
+                case SERVER_RECEIVE_STRING: // sending a string
                     System.out.println("Server: the client"+packet.source+" said: "+ packet.content);
                 break;
 
-                case 1: // disconnecting
+                case SERVER_DISCONNECT_CLIENT: // disconnecting
                     killClient(packet.source);
-                    NetworkPlayer np = players.get(packet.source);
-                    players.remove(np);
-                    sendPacket(null,new NetworkPacket(3,true,players));
-                break;
-
-                case 2: // joining introduction
-                    np = (NetworkPlayer) packet.content;
-                    players.add(np);
-                    sendPacket(null,new NetworkPacket(3,true,players));
-                break;
-
-                case 3: // color change request
                     np = players.get(packet.source);
-                    int id = colors.indexOf(np.getColor());
-                    if (id+1 == colors.size())
-                        id = 0;
-                    else
-                        id++;
-                    np.setColor(colors.get(id));
-                    sendPacket(null,new NetworkPacket(3,true,players));
+                    players.remove(np);
+                    sendPacket(null,new NetworkPacket(CLIENT_UPDATE_PLAYERLIST,players));
+                    if (game != null)
+                        kill();
                 break;
 
+                case SERVER_ACCEPT_NEW_CLIENT: // joining introduction
+                    np = (NetworkPlayer) packet.content;
+                    np.setId(packet.source);
+                    Color uc = getUnoccupiedColor();
+                    if (uc != null)
+                    {
+                        np.setColor(uc);
+                        sendPacket(clients.get(packet.source), new NetworkPacket(CLIENT_CHANGE_COLOR, null));
+                    }
+                    players.add(np);
+                    sendPacket(null,new NetworkPacket(CLIENT_UPDATE_PLAYERLIST,players));
+                break;
 
+                case SERVER_REQUESTED_COLOR_CHANGE: // color change request
+                    np = players.get(packet.source);
+                    uc = getUnoccupiedColor();
+                    if (uc != null)
+                    {
+                        np.setColor(uc);
+                        sendPacket(clients.get(packet.source), new NetworkPacket(CLIENT_CHANGE_COLOR, uc));
+                        sendPacket(null, new NetworkPacket(CLIENT_UPDATE_PLAYERLIST,  players));
+                    }
+                break;
+
+                case SERVER_REQUESTED_MOVEMENT: // movement request
+                    Pair<Integer, Pair<Integer,Boolean>> payload = (Pair<Integer, Pair<Integer,Boolean>>) packet.content;
+                    for (int i = 0; i < clients.size(); i++)
+                        if (i != packet.source)
+                            sendPacket(clients.get(i),new NetworkPacket(CLIENT_MOVE,payload));
+                    game.entityReceiveMovement(payload.left,payload.right.left,payload.right.right);
+                break;
+
+                case SERVER_REQUESTED_BOMB: // bomb place request
+                    Integer payload_1 = ( Integer) packet.content;
+                    for (int i = 0; i < clients.size(); i++)
+                        if (i != packet.source)
+                            sendPacket(clients.get(i),new NetworkPacket(CLIENT_PLACE_BOMB,payload_1));
+                    game.receiveBomb(payload_1);
+                break;
+            }
+        }
+    }
+
+    public void setGame(Game g)
+    {
+        game = g;
+    }
+
+    private Color getUnoccupiedColor()
+    {
+        Set<Color> occupiedColors = new HashSet<>();
+
+        for (NetworkPlayer ne : players)
+        {
+            occupiedColors.add(ne.getColor());
+        }
+        Random r = new Random();
+        int len = Arrays.stream(Color.values()).filter(c->!occupiedColors.contains(c)).toList().size();
+        Optional<Color> choosen = Arrays.stream(Color.values()).filter(c->!occupiedColors.contains(c)).skip(r.nextInt(len)).findFirst();
+        return choosen.orElse(null);
+    }
+
+    public void spawnPlayers()
+    {
+        synchronized (clients)
+        {
+            for (int i = 0; i < clients.size(); i++)
+            {
+                NetworkPlayer np = players.get(i);
+                sendPacket(clients.get(i),new NetworkPacket(CLIENT_SPAWN_PLAYERS,np));
             }
         }
     }

@@ -2,12 +2,12 @@ package game.internal;
 
 public class GameTickHandler
 {
-    private static Game game;
+    private static int id = 0;
 
     public static void loop(Game g)
     {
-        game = g;
-        Thread thread = new Thread("GameTick")
+        Game game = g;
+        Thread thread = new Thread("GameTick"+id)
         {
             @Override
             public void run()
@@ -29,11 +29,8 @@ public class GameTickHandler
         };
         thread.setDaemon(true);
         thread.start();
-    }
+        id++;
 
-    public static void setGame(Game g)
-    {
-        game = g;
     }
 
 }

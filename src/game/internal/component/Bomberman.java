@@ -1,6 +1,7 @@
 package game.internal.component;
 
 import game.internal.Game;
+import game.internal.network.NetworkPlayer;
 
 import java.awt.image.BufferedImage;
 public abstract class Bomberman extends Entity
@@ -34,7 +35,6 @@ public abstract class Bomberman extends Entity
         return selectedAxisY;
     }
     public int getHealth(){return health;}
-
     public int getPriority()
     {
         return -5;
@@ -46,6 +46,10 @@ public abstract class Bomberman extends Entity
     public boolean isContactable()
     {
         return true;
+    }
+    public int getBombSize()
+    {
+        return bombSize;
     }
 
     public GameObject explode() //-bomba szekvenciaszál-
@@ -64,7 +68,8 @@ public abstract class Bomberman extends Entity
     {
         if (placedBombs < maxBombs)
         {
-            Bomb newBomb = game.createBomb(field,this,bombSize);
+            Bomb newBomb = game.createBomb(this);
+            game.bombermanSendBomb(this);
             if (newBomb != null)
                 placedBombs++;
         }
@@ -111,5 +116,10 @@ public abstract class Bomberman extends Entity
     public boolean kick(int axis,boolean positive)
     {
         return false;
+    }
+
+    public NetworkPlayer getNp()
+    {
+        return null;
     }
 }

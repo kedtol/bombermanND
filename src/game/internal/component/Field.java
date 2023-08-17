@@ -1,8 +1,10 @@
 package game.internal.component;
 
 import game.internal.Game;
+import game.io.ResourceLoader;
 
 import java.awt.*;
+import java.awt.Color;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,7 +16,7 @@ public class Field implements Serializable
 {
     private List<GameObject> gameObjects;
     private boolean onFire;
-    transient private ArrayList<FieldPair> neighbors;
+    private transient ArrayList<FieldPair> neighbors;
 
     public Field()
     {
@@ -27,9 +29,46 @@ public class Field implements Serializable
         oos.writeObject(neighbors);
     }
 
+    @Serial
+    private void writeObject(ObjectOutputStream oos) throws IOException
+    {
+        List<GameObject> players = new ArrayList<>();
+
+        for (GameObject go : gameObjects)
+        {
+            if ( go.getImageName().contains("player")) // cursed type check, i know
+                players.add(go);
+        }
+
+        gameObjects.removeAll(players);
+
+        oos.defaultWriteObject();
+        oos.writeObject(onFire);
+        oos.writeObject(gameObjects);
+
+        gameObjects.addAll(players);
+    }
+
+    private void readObject(ObjectInputStream ois)
+            throws ClassNotFoundException, IOException {
+
+        ois.defaultReadObject();
+
+        onFire = (boolean) ois.readObject();
+        gameObjects = (List<GameObject>) ois.readObject();
+
+
+
+    }
+
+
     public void loadNeighbors(ObjectInputStream ois) throws IOException, ClassNotFoundException
     {
         neighbors = (ArrayList<FieldPair>) ois.readObject();
+    }
+    public void addGameObject(GameObject go)
+    {
+        gameObjects.add(go);
     }
 
     public Field getNeighbor(int axis, boolean positive)
@@ -267,7 +306,7 @@ public class Field implements Serializable
                 if ((positive.explode() != positive || negative.explode() != negative))
                     freeAxis++;
         }
-        if (gameObjects.size() > 0 && gameObjects.get(0).explode() == gameObjects.get(0).explode())
+        if (gameObjects.size() > 0 && gameObjects.get(0).explode() == gameObjects.get(0))
             freeAxis = 0;
 
         if (freeAxis > 1)

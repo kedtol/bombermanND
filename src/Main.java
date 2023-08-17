@@ -6,6 +6,6 @@ public class Main
 {
     public static void main(String[] args)
     {
-        new MainFrame(new Dimension(1200,600));
+        new MainFrame(new Dimension(800,600));
     }
 }

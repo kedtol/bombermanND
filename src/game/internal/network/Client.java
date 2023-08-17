@@ -1,8 +1,11 @@
 package game.internal.network;
 
+import game.internal.Game;
+import game.internal.component.*;
+import game.internal.window.GamePanel;
 import game.internal.window.LobbyPanel;
+import game.internal.window.MainFrame;
 
-import java.awt.*;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -10,6 +13,9 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.ArrayList;
+import java.util.List;
+
+import static game.internal.network.NetworkPacketType.*;
 
 public class Client implements NetworkInterface
 {
@@ -17,6 +23,8 @@ public class Client implements NetworkInterface
     private NetworkPlayer player;
     private Thread receiveThread = null;
     private LobbyPanel lobby = null;
+    private MainFrame mf = null;
+    private Game game = null;
 
     public Client(String serverIp, String serverPort, NetworkPlayer player) throws IOException
     {
@@ -36,7 +44,7 @@ public class Client implements NetworkInterface
     {
         try
         {
-            sendPacket(new NetworkPacket(1,false,null));
+            sendPacket(new NetworkPacket(SERVER_DISCONNECT_CLIENT,false,null));
 
             if (server != null)
             {
@@ -102,22 +110,65 @@ public class Client implements NetworkInterface
     {
         if (packet.server)
         {
-            switch (packet.id)
+            switch (packet.type)
             {
-                case 0: // sending a string
+                case CLIENT_RECEIVE_STRING: // sending a string
                     System.out.println("Client: the server said: "+ packet.content);
                 break;
 
-                case 1: // please introduce yourself
-                    sendPacket(new NetworkPacket(2,false,player));
+                case CLIENT_INTRODUCE: // please introduce yourself
+                    sendPacket(new NetworkPacket(SERVER_ACCEPT_NEW_CLIENT,false,player));
                 break;
 
-                case 2: // please change color
+                case CLIENT_CHANGE_COLOR: // please change color
                     player.setColor((Color) packet.content);
                 break;
 
-                case 3: // update lobby playerlist
-                    lobby.updatePlayers((ArrayList<NetworkPlayer>) packet.content);
+                case CLIENT_UPDATE_PLAYERLIST: // update lobby playerlist
+                    ArrayList<NetworkPlayer> nps = (ArrayList<NetworkPlayer>) packet.content;
+                    lobby.updatePlayers(nps);
+                break;
+
+                case CLIENT_START_GAME: // game starts
+                    lobby.joinGame((Game) packet.content);
+                    mf = lobby.getMainFrame();
+                break;
+
+                case CLIENT_SPAWN_PLAYERS: // spawn player
+                    player = (NetworkPlayer) packet.content;
+                    game.assumeControl();
+                break;
+
+                case CLIENT_MOVE: // spawn player
+                    Pair<Integer, Pair<Integer,Boolean>> payload = (Pair<Integer, Pair<Integer,Boolean>>) packet.content;
+                    game.entityReceiveMovement(payload.left,payload.right.left,payload.right.right);
+                break;
+
+                case CLIENT_PLACE_BOMB:
+                    Integer payload_1 = (Integer) packet.content;
+                    game.receiveBomb(payload_1);
+                break;
+
+                case CLIENT_UPDATE_ENTITYLIST:
+                    List<Entity> payload_2 = (List<Entity>) packet.content;
+                    game.updateEntityList(payload_2);
+                break;
+
+                case CLIENT_UPDATE_GAME:
+                    game = (Game) packet.content;
+                    game.setClient(this);
+                    game.setServer(null);
+                    mf.startNewGame(game);
+                    game.assumeControl();
+                break;
+
+                case CLIENT_PLACE_POWERUP:
+                    game.placePowerUp((PowerUp)packet.content);
+                break;
+
+                case CLIENT_KILL_ENTITY:
+                    NetworkPlayer np = (NetworkPlayer) packet.content;
+                    game.killEntity(np);
                 break;
 
             }
@@ -126,6 +177,7 @@ public class Client implements NetworkInterface
 
     public void sendPacket(NetworkPacket packet)
     {
+        packet.server = false;
         try
         {
             OutputStream os = server.getOutputStream();
@@ -145,7 +197,15 @@ public class Client implements NetworkInterface
         this.lobby = lobbyPanel;
     }
 
+    public void setGame(Game game)
+    {
+        this.game = game;
+    }
 
+    public NetworkPlayer getPlayer()
+    {
+        return player;
+    }
 }
 
 
