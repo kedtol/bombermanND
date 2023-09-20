@@ -1,6 +1,8 @@
 package game.internal.component;
 
 import game.internal.Game;
+import game.internal.network.NetworkPacket;
+import game.internal.network.NetworkPacketType;
 
 import java.awt.image.BufferedImage;
 
@@ -30,30 +32,38 @@ public class Bomb extends Entity
     @Override
     public void tickAction()
     {
-        fuse.tick();
-
-        if (fuse.isFinished())
+        if (game.getServer() != null)
         {
-            if (!exploded)
+            fuse.tick();
+
+            if (fuse.isFinished())
             {
-                explode();
+                if (!exploded)
+                {
+                    game.getServer().sendPacket(null,new NetworkPacket(NetworkPacketType.CLIENT_EXPLODE_BOMB,networkID));
+                    explode();
+                }
+                else
+                {
+                    for (int i = 0; i < 4; i++)
+                        field.initiateExtinguishment(i, explosionSize);
+
+                    kill();
+                }
             }
-            else
+
+            if (kicked && !exploded)
             {
-                for (int i = 0; i < 4; i++)
-                    field.initiateExtinguishment(i,explosionSize);
-                field.removeGameObject(this);
-                bomberman.bombExploded();
-                kill();
+                move(axis, positive);
             }
         }
-
-        if (kicked && !exploded)
-        {
-            move(axis, positive);
-        }
-
         super.tickAction();
+    }
+
+    public final void kill()
+    {
+        bomberman.bombExploded();
+        super.kill();
     }
 
     @Override

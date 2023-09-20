@@ -1,12 +1,13 @@
 package game.internal.component;
 
+import game.internal.network.NetworkObject;
 import game.io.ResourceLoader;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.Serializable;
 
-public abstract class GameObject implements Serializable,Interest
+public abstract class GameObject extends NetworkObject implements Interest
 {
     transient protected BufferedImage image;
     private final String imageName;

@@ -29,15 +29,15 @@ public class Enemy extends Bomberman
 
     public void setupSync(Client client)
     {
-        super.setupSync(client);
-        if (client == null)
-            ai = true;
+        //super.setupSync(client);
+        /*if (game.getServer() != null)
+            ai = true;*/
     }
 
     @Override
     public void tickAction()
     {
-        if (game != null && ai)
+        if (game != null && game.getServer() != null)
             ai();
 
         super.tickAction();

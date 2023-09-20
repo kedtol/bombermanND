@@ -11,8 +11,10 @@ import game.io.ResourceLoader;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.lang.reflect.Array;
 import java.util.*;
 import java.util.List;
+import java.util.stream.LongStream;
 
 import static game.internal.network.NetworkPacketType.*;
 
@@ -29,7 +31,7 @@ public class Game implements Serializable
     private transient ArrayList<BufferedImage> powerUps;
     private transient ArrayList<String> powerUpKeys;
     private int players;
-
+    private transient long seed = 0;
     private transient Server server = null;
     private transient Client client = null;
 
@@ -160,13 +162,29 @@ public class Game implements Serializable
         entities = new ArrayList<>();
         Field[][] mapArray = new Field[w][h];
         dimensions = 2;
+        Random r = new Random(seed);
         //creating the main components
         for (int i = 0; i < w; i++)
         {
             for (int j = 0; j < h; j++)
             {
-                Random r = new Random();
                 mapArray[i][j] = new Field();
+
+                int c = r.nextInt(200);
+                int type = 0;
+
+                if (c < 100)
+                {
+
+                    if (c < 6)
+                        type = 1;
+                    if (c >= 6 && c < 15)
+                        type = 4;
+                    if (c >= 15 && c < 45)
+                        type = 2;
+                    if (c >= 55)
+                        type = 3;
+                }
 
 
                 if (i % 2 == 0 && j % 2 == 0)
@@ -181,7 +199,7 @@ public class Game implements Serializable
                         else
                             mapArray[i][j].acceptGameObject(new Wall(resourceLoader.getImage("wall_moss"),"wall_moss",true),-1,false);
                     else
-                        mapArray[i][j].acceptGameObject(new Box(resourceLoader.getImage("box"),"box",true,powerUps,powerUpKeys,this,mapArray[i][j]),-1,false);
+                        mapArray[i][j].acceptGameObject(new Box(resourceLoader.getImage("box"),"box",true,powerUps,powerUpKeys,type,mapArray[i][j]),-1,false);
                 map.add(mapArray[i][j]);
             }
         }
@@ -222,6 +240,23 @@ public class Game implements Serializable
         entities = new ArrayList<>();
         dimensions = 3;
         Field[][][] mapArray = new Field[x][y][z];
+        Random r = new Random(seed);
+
+        int c = r.nextInt(200);
+        int type = 0;
+
+        if (c < 100)
+        {
+
+            if (c < 6)
+                type = 1;
+            if (c >= 6 && c < 15)
+                type = 4;
+            if (c >= 15 && c < 45)
+                type = 2;
+            if (c >= 55)
+                type = 3;
+        }
 
         //creating the main components
         for (int i = 0; i < x; i++)
@@ -230,7 +265,7 @@ public class Game implements Serializable
             {
                 for (int k = 0; k < z; k++)
                 {
-                    Random r = new Random();
+
                     mapArray[i][j][k] = new Field();
 
                     if (i % 2 == 0 && j % 2 == 0 && k % 2 == 0)
@@ -245,7 +280,7 @@ public class Game implements Serializable
                             else
                                 mapArray[i][j][k].acceptGameObject(new Wall(resourceLoader.getImage("wall_moss"),"wall_moss", true),-1,false);
                         else
-                            mapArray[i][j][k].acceptGameObject(new Box(resourceLoader.getImage("box"),"box", true,powerUps,powerUpKeys,this,mapArray[i][j][k]),-1,false);
+                            mapArray[i][j][k].acceptGameObject(new Box(resourceLoader.getImage("box"),"box", true,powerUps,powerUpKeys,type,mapArray[i][j][k]),-1,false);
                     map.add(mapArray[i][j][k]);
                 }
             }
@@ -295,6 +330,22 @@ public class Game implements Serializable
         entities = new ArrayList<>();
         Field[][][][] mapArray = new Field[x][y][z][w];
         dimensions = 4;
+        Random r = new Random(seed);
+        int c = r.nextInt(200);
+        int type = 0;
+
+        if (c < 100)
+        {
+
+            if (c < 6)
+                type = 1;
+            if (c >= 6 && c < 15)
+                type = 4;
+            if (c >= 15 && c < 45)
+                type = 2;
+            if (c >= 55)
+                type = 3;
+        }
 
         //creating the main components
         for (int i = 0; i < x; i++)
@@ -305,7 +356,6 @@ public class Game implements Serializable
                 {
                     for (int l = 0; l < w; l++)
                     {
-                        Random r = new Random();
                         mapArray[i][j][k][l] = new Field();
 
                         if (i % 2 == 0 && j % 2 == 0 && k % 2 == 0 && l % 2 == 0)
@@ -320,7 +370,7 @@ public class Game implements Serializable
                                 else
                                     mapArray[i][j][k][l].acceptGameObject(new Wall(resourceLoader.getImage("wall_moss"),"wall_moss", true),-1,false);
                             else
-                                mapArray[i][j][k][l].acceptGameObject(new Box(resourceLoader.getImage("box"),"box", true,powerUps, powerUpKeys,this,mapArray[i][j][k][l]),-1,false);
+                                mapArray[i][j][k][l].acceptGameObject(new Box(resourceLoader.getImage("box"),"box", true,powerUps, powerUpKeys,type,mapArray[i][j][k][l]),-1,false);
                         map.add(mapArray[i][j][k][l]);
                     }
                 }
@@ -408,11 +458,8 @@ public class Game implements Serializable
                     {
                         if (client == null)
                         {
-                           if (!e.kick(0,true)) // todo: change this type check
-                           {
-                               server.sendPacket(null, new NetworkPacket(CLIENT_KILL_ENTITY, ((Bomberman) e).getNp()));
-                           }
-                       }
+                            server.sendPacket(null, new NetworkPacket(CLIENT_KILL_ENTITY, e.networkID));
+                        }
                         //i.remove();
                     }
                     iter++;
@@ -433,8 +480,8 @@ public class Game implements Serializable
 
     public void start()
     {
-        gameStarted = true;
-    }
+    gameStarted = true;
+}
 
     public int getDimensions()
     {
@@ -443,7 +490,7 @@ public class Game implements Serializable
 
     public void addPlayer(NetworkPlayer np,boolean controlled)
     {
-        Random r = new Random();
+        Random r = new Random(seed);
         int field = 0;
         boolean placement = false;
         while (!placement)
@@ -469,7 +516,7 @@ public class Game implements Serializable
 
     public void addEnemy()
     {
-        Random r = new Random();
+        Random r = new Random(seed);
         int field = 0;
         boolean placement = false;
         while (!placement)
@@ -496,11 +543,14 @@ public class Game implements Serializable
             g.drawString("GAME OVER!",10,10);
     }
 
-    public Bomb createBomb(Bomberman b)
+    public Bomb createBomb(Bomberman b, UUID BnetworkID)
     {
         if (b != null)
         {
             Bomb newBomb = new Bomb(resourceLoader.getImage("bomb"), "bomb", b.getField(), this, b, b.getBombSize());
+            if (BnetworkID != null)
+                newBomb.networkID = BnetworkID;
+
             if (b.getField().placeBomb(newBomb))
             {
                 newComers.add(newBomb);
@@ -526,16 +576,16 @@ public class Game implements Serializable
         this.server = server;
         if (server != null)
             server.setGame(this);
+
     }
     public void assumeControl()
     {
         for (Entity e : entities)
         {
             e.setupSync(client);
-            e.getField().addGameObject(e);
+            //e.getField().addGameObject(e);
 
         }
-
 
         for (Field field : map)
         {
@@ -573,17 +623,47 @@ public class Game implements Serializable
         entities.get(e).moveNetwork(axis,positive);
     }
 
+    public void spawnPlayers(ArrayList<NetworkPlayer> nps)
+    {
+        for (NetworkPlayer ne : nps)
+        {
+            if (ne.getAI())
+                addEnemy();
+            else
+            {
+                if (client != null && client.getPlayer().getId() == ne.getId())
+                    addPlayer(ne, true);
+                else
+                    addPlayer(ne, false);
+            }
+        }
+    }
+
     public void bombermanSendBomb(Bomberman b)
     {
         if (client != null)
-            client.sendPacket(new NetworkPacket(SERVER_REQUESTED_BOMB,entities.indexOf(b)));
+        {
+            client.sendPacket(new NetworkPacket(SERVER_REQUESTED_BOMB, b.networkID));
+        }
         else
-            server.sendPacket(null, new NetworkPacket(CLIENT_PLACE_BOMB,entities.indexOf(b)));
+        {
+            server.sendPacket(null, new NetworkPacket(CLIENT_PLACE_BOMB, b.networkID));
+        }
+
+        if (server != null)
+        {
+            b.bombPlaced();
+        }
     }
 
-    public void receiveBomb(int index)
+    public Bomb receiveBomb(UUID BMnetworkID, UUID BnetworkID)
     {
-        createBomb((Bomberman) entities.get(index));
+        for (Entity e : entities)
+        {
+            if (e.networkID.equals(BMnetworkID))
+                return createBomb((Bomberman) e,BnetworkID); // TODO: remove casting
+        }
+        return null;
     }
 
     public void updateEntityList(List<Entity> entities)
@@ -617,16 +697,34 @@ public class Game implements Serializable
             storedPowerUps.add(content);
     }
 
-    public void killEntity(NetworkPlayer id)
+    public void killEntity(UUID networkID)
     {
         synchronized (entities)
         {
             for (Entity e : entities)
             {
-                if (e.getImageName().contains("player")) // todo: change this type check
-                    if (((Player)e).getNp().getId() == id.getId())
-                        e.kill();
+                if (e.networkID.equals(networkID))
+                    e.kill();
             }
         }
+    }
+
+    public void explodeEntity(UUID networkID)
+    {
+        for (Entity e : entities)
+        {
+            if (e.networkID.equals(networkID))
+                e.explode();
+        }
+    }
+
+    public void setSeed(long seed)
+    {
+        this.seed = seed;
+    }
+
+    public long getSeed()
+    {
+        return seed;
     }
 }

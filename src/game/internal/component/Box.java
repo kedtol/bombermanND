@@ -6,9 +6,6 @@ import game.io.ResourceLoader;
 
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Random;
-
-import static game.internal.network.NetworkPacketType.CLIENT_PLACE_POWERUP;
 
 public class Box extends GameObject
 {
@@ -16,13 +13,15 @@ public class Box extends GameObject
     final private ArrayList<String> powerUpKeys;
     private Game game = null;
     private Field field = null;
-    public Box(BufferedImage image, String imageName, boolean solid, ArrayList<BufferedImage> powerUps, ArrayList<String> powerUpKeys, Game game,Field field)
+    private int type;
+    public Box(BufferedImage image, String imageName, boolean solid, ArrayList<BufferedImage> powerUps, ArrayList<String> powerUpKeys, int type,Field field)
     {
         super(image, imageName, solid);
         this.powerUps = powerUps;
         this.powerUpKeys = powerUpKeys;
-        this.game = game;
+        this.type = type;
         this.field = field;
+
     }
 
     public void setImage(ResourceLoader r)
@@ -38,18 +37,10 @@ public class Box extends GameObject
     @Override
     public GameObject explode()
     {
-        PowerUp p = createPowerUp();
-        if (game.getServer() != null)
-        {
-            game.getServer().sendPacket(null, new NetworkPacket(CLIENT_PLACE_POWERUP,p));
-            return p;
-        }
-        else
-        {
-            game.addRequestedPowerUp(field);
+        if (type == 0)
             return null;
-        }
 
+        return new PowerUp(powerUps.get(type),powerUpKeys.get(type),type);
     }
 
     @Override
@@ -57,34 +48,6 @@ public class Box extends GameObject
     {
         return false;
     }
-
-    private PowerUp createPowerUp()
-    {
-        Random random = new Random();
-        int c = random.nextInt(100);
-        int type = 0;
-
-        if (c > 70)
-        {
-            c = random.nextInt(100);
-
-            if (c < 6)
-                type = 1;
-            if (c >= 6 && c < 15)
-                type = 4;
-            if (c >= 15 && c < 45)
-                type = 2;
-            if (c >= 55)
-                type = 3;
-        }
-
-
-        if (type == 0)
-            return null;
-
-        return new PowerUp(powerUps.get(type),powerUpKeys.get(type),type);
-    }
-
 
     @Override
     public int getPriority()

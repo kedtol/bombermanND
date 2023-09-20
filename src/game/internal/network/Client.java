@@ -14,6 +14,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static game.internal.network.NetworkPacketType.*;
 
@@ -25,6 +26,7 @@ public class Client implements NetworkInterface
     private LobbyPanel lobby = null;
     private MainFrame mf = null;
     private Game game = null;
+    private ArrayList<NetworkPlayer> players = new ArrayList<>();
 
     public Client(String serverIp, String serverPort, NetworkPlayer player) throws IOException
     {
@@ -126,27 +128,35 @@ public class Client implements NetworkInterface
 
                 case CLIENT_UPDATE_PLAYERLIST: // update lobby playerlist
                     ArrayList<NetworkPlayer> nps = (ArrayList<NetworkPlayer>) packet.content;
+                    players = nps;
                     lobby.updatePlayers(nps);
                 break;
 
-                case CLIENT_START_GAME: // game starts
-                    lobby.joinGame((Game) packet.content);
+                case CLIENT_START_GAME: // game starts - deprecated
+                    /*lobby.joinGame((Game) packet.content);
+                    mf = lobby.getMainFrame();*/
+                break;
+
+                case CLIENT_GENERATE_GAME: // game starts
+                    Pair<Integer,Pair<Integer,Long>> payload = (Pair<Integer, Pair<Integer, Long>>) packet.content;
+                    lobby.generateGame(payload.left,payload.right.left,payload.right.right);
                     mf = lobby.getMainFrame();
                 break;
 
                 case CLIENT_SPAWN_PLAYERS: // spawn player
                     player = (NetworkPlayer) packet.content;
-                    game.assumeControl();
+                    game.spawnPlayers(players);
+                    //game.assumeControl();
                 break;
 
                 case CLIENT_MOVE: // spawn player
-                    Pair<Integer, Pair<Integer,Boolean>> payload = (Pair<Integer, Pair<Integer,Boolean>>) packet.content;
-                    game.entityReceiveMovement(payload.left,payload.right.left,payload.right.right);
+                    Pair<Integer, Pair<Integer,Boolean>> payload_0 = (Pair<Integer, Pair<Integer,Boolean>>) packet.content;
+                    game.entityReceiveMovement(payload_0.left,payload_0.right.left,payload_0.right.right);
                 break;
 
                 case CLIENT_PLACE_BOMB:
-                    Integer payload_1 = (Integer) packet.content;
-                    game.receiveBomb(payload_1);
+                    Pair<UUID,UUID> payload_1 = (Pair<UUID, UUID>) packet.content;
+                    game.receiveBomb(payload_1.left,payload_1.right);
                 break;
 
                 case CLIENT_UPDATE_ENTITYLIST:
@@ -167,8 +177,13 @@ public class Client implements NetworkInterface
                 break;
 
                 case CLIENT_KILL_ENTITY:
-                    NetworkPlayer np = (NetworkPlayer) packet.content;
+                    UUID np = (UUID) packet.content;
                     game.killEntity(np);
+                break;
+
+                case CLIENT_EXPLODE_BOMB:
+                    UUID np1 = (UUID) packet.content;
+                    game.explodeEntity(np1);
                 break;
 
             }

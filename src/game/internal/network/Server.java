@@ -1,7 +1,7 @@
 package game.internal.network;
 
 import game.internal.Game;
-import game.internal.component.Bomberman;
+import game.internal.component.Bomb;
 import game.internal.component.Color;
 import game.internal.component.Field;
 import game.internal.component.FieldPair;
@@ -23,10 +23,11 @@ public class Server implements NetworkInterface
     private Game game = null;
     private boolean dead = false;
 
+    private int aiCount;
+
     public Server() throws IOException
     {
         serverSocket = new ServerSocket(29869);
-
     }
 
 
@@ -36,25 +37,8 @@ public class Server implements NetworkInterface
         if (!dead)
         {
             lookForClients(); // ACCEPT THREAD
-            receivePackets(); // RECEIVE THREAD
-
-
-            for (int i = 0; i < clients.size(); i++)
-            {
-                receivePacketsFromClient(i);
-            }
+            receivePackets(); // RECEIVE THREADS
         }
-        //System.out.println("OPTIMIZED?");
-        /*try
-        {
-          //  checkClients();
-            //greetClients();
-
-        }
-        catch (IOException e)
-        {
-            e.printStackTrace();
-        }*/
     }
 
     @Override
@@ -100,7 +84,10 @@ public class Server implements NetworkInterface
     @Override
     public void receivePackets()
     {
-
+        for (int i = 0; i < clients.size(); i++)
+        {
+            receivePacketsFromClient(i);
+        }
     }
 
     private void lookForClients()
@@ -147,7 +134,6 @@ public class Server implements NetworkInterface
                             break;
                         }
                     }
-                    System.out.println("huh!");
                 }
             };
 
@@ -338,11 +324,16 @@ public class Server implements NetworkInterface
                 break;
 
                 case SERVER_REQUESTED_BOMB: // bomb place request
-                    Integer payload_1 = ( Integer) packet.content;
-                    for (int i = 0; i < clients.size(); i++)
-                        if (i != packet.source)
-                            sendPacket(clients.get(i),new NetworkPacket(CLIENT_PLACE_BOMB,payload_1));
-                    game.receiveBomb(payload_1);
+                    UUID payload_1 = (UUID) packet.content;
+
+                    Bomb b = game.receiveBomb(payload_1,null);
+                    if (b != null)
+                    {
+                        Pair<UUID,UUID> payload_1_1 = new Pair<>();
+                        payload_1_1.left = payload_1;
+                        payload_1_1.right = b.networkID;
+                        sendPacket(null, new NetworkPacket(CLIENT_PLACE_BOMB, payload_1_1));
+                    }
                 break;
             }
         }
@@ -356,7 +347,7 @@ public class Server implements NetworkInterface
     private Color getUnoccupiedColor()
     {
         Set<Color> occupiedColors = new HashSet<>();
-
+        occupiedColors.add(Color.AI);
         for (NetworkPlayer ne : players)
         {
             occupiedColors.add(ne.getColor());
@@ -369,14 +360,28 @@ public class Server implements NetworkInterface
 
     public void spawnPlayers()
     {
+
         synchronized (clients)
         {
+            for (int i = 0; i < aiCount; i++)
+            {
+                NetworkPlayer np = new NetworkPlayer(Color.AI,"AI",players.size(),true);
+                players.add(np);
+            }
+            sendPacket(null,new NetworkPacket(CLIENT_UPDATE_PLAYERLIST,players));
+
             for (int i = 0; i < clients.size(); i++)
             {
                 NetworkPlayer np = players.get(i);
                 sendPacket(clients.get(i),new NetworkPacket(CLIENT_SPAWN_PLAYERS,np));
             }
+
+
         }
     }
 
+    public void setAiCount(int cc)
+    {
+        aiCount = cc;
+    }
 }

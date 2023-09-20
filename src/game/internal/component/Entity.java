@@ -4,6 +4,7 @@ import game.internal.Game;
 import game.internal.network.Client;
 
 import java.awt.image.BufferedImage;
+import java.util.UUID;
 
 public abstract class Entity extends GameObject
 {
@@ -116,7 +117,7 @@ public abstract class Entity extends GameObject
         return false;
     }
 
-    public final void kill()
+    public void kill()
     {
         alive = false;
         field.removeGameObject(this);

@@ -9,9 +9,9 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
+import java.util.Random;
 
-import static game.internal.network.NetworkPacketType.CLIENT_START_GAME;
-import static game.internal.network.NetworkPacketType.SERVER_REQUESTED_COLOR_CHANGE;
+import static game.internal.network.NetworkPacketType.*;
 
 public class LobbyPanel extends JPanel
 {
@@ -149,6 +149,20 @@ public class LobbyPanel extends JPanel
         mf.startNewGame(game);
     }
 
+    public void generateGame(int dim, int size,long seed)
+    {
+        Game game = new Game();
+        game.setSeed(seed);
+        switch (dim)
+        {
+            case 2 -> game.generateMap(size, size);
+            case 3 -> game.generateMap3d(size, size, size);
+            case 4 -> game.generateMap4d(size, size, size, size);
+        }
+        game.setClient(client);
+        mf.startNewGame(game);
+    }
+
     class ccAction implements ActionListener
     {
         @Override
@@ -179,8 +193,10 @@ public class LobbyPanel extends JPanel
             int dim = (int)db.getSelectedItem();
             int size = (int)sb.getSelectedItem();
             int cc = (int)ccb.getSelectedItem();
+            server.setAiCount(cc);
 
             Game game = new Game();
+            game.setSeed(System.currentTimeMillis());
             switch (dim)
             {
                 case 2 -> game.generateMap(size, size);
@@ -194,7 +210,18 @@ public class LobbyPanel extends JPanel
             for (int i = 0; i < cc; i++)
                 game.addEnemy();
 
-            server.sendPacket(null,new NetworkPacket(CLIENT_START_GAME,game));
+            Pair<Integer,Long> innerPayload = new Pair<>();
+            Pair<Integer,Pair<Integer,Long>> payload = new Pair<>();
+            payload.left = dim;
+            innerPayload.left = size;
+            innerPayload.right = game.getSeed();
+            payload.right = innerPayload;
+            server.sendPacket(null,new NetworkPacket(CLIENT_GENERATE_GAME,payload));
+
+
+            //server.sendPacket(null,new NetworkPacket(CLIENT_START_GAME,game));
+
+
             game.setServer(server);
             server.spawnPlayers();
             game.start();

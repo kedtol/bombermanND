@@ -68,13 +68,15 @@ public abstract class Bomberman extends Entity
     {
         if (placedBombs < maxBombs)
         {
-            Bomb newBomb = game.createBomb(this);
+            //Bomb newBomb = game.createBomb(this);
             game.bombermanSendBomb(this);
-            if (newBomb != null)
-                placedBombs++;
+            //if (newBomb != null)
+            //    placedBombs++;
         }
     }
     public void bombExploded() {placedBombs--;}
+
+    public void bombPlaced() {placedBombs++;}
 
     public void powerUp(int id)
     {

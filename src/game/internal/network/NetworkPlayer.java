@@ -10,11 +10,14 @@ public class NetworkPlayer implements Serializable
     private Color color;
     private String name;
 
-    public NetworkPlayer(Color c, String n,int id)
+    private boolean ai;
+
+    public NetworkPlayer(Color c, String n,int id, boolean ai)
     {
         this.color = c;
         this.name = n;
         this.id = id;
+        this.ai = ai;
     }
 
     public String getName()
@@ -27,10 +30,9 @@ public class NetworkPlayer implements Serializable
         return color;
     }
 
-    public int getId()
-    {
-        return id;
-    }
+    public int getId() {return id;}
+
+    public boolean getAI() {return ai;}
 
     public void setId(int id){this.id = id;}
 
