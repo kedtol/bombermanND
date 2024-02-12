@@ -3,8 +3,12 @@ package game.internal.component;
 import game.internal.Game;
 import game.internal.network.NetworkPacket;
 import game.internal.network.NetworkPacketType;
+import game.internal.network.Pair;
 
 import java.awt.image.BufferedImage;
+import java.util.UUID;
+
+import static game.internal.network.NetworkPacketType.CLIENT_KICK_BOMB;
 
 public class Bomb extends Entity
 {
@@ -45,9 +49,6 @@ public class Bomb extends Entity
                 }
                 else
                 {
-                    for (int i = 0; i < 4; i++)
-                        field.initiateExtinguishment(i, explosionSize);
-
                     kill();
                 }
             }
@@ -62,6 +63,9 @@ public class Bomb extends Entity
 
     public final void kill()
     {
+        for (int i = 0; i < 4; i++)
+            field.initiateExtinguishment(i, explosionSize);
+
         bomberman.bombExploded();
         super.kill();
     }
@@ -72,6 +76,18 @@ public class Bomb extends Entity
         kicked = true;
         this.axis = axis;
         this.positive = positive;
+
+        if (game.getClient() == null) // on SERVER only
+        {
+            Pair<Integer,Boolean> innerPayload = new Pair<>();
+            Pair<UUID,Pair<Integer,Boolean>> outerPayload = new Pair<>();
+            innerPayload.left = axis;
+            innerPayload.right = positive;
+            outerPayload.left = networkID;
+            outerPayload.right = innerPayload;
+            game.getServer().sendPacket(null, new NetworkPacket(CLIENT_KICK_BOMB,outerPayload));
+        }
+
         return true;
     }
 

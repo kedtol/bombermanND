@@ -204,11 +204,9 @@ public class LobbyPanel extends JPanel
                 case 4 -> game.generateMap4d(size, size, size, size);
             }
 
-            for (NetworkPlayer ne : players)
+            for (NetworkPlayer ne : players) // TODO: i seriously doubt that this is the right time/place to call this method
                 game.addPlayer(ne,false);
 
-            for (int i = 0; i < cc; i++)
-                game.addEnemy();
 
             Pair<Integer,Long> innerPayload = new Pair<>();
             Pair<Integer,Pair<Integer,Long>> payload = new Pair<>();
@@ -219,11 +217,11 @@ public class LobbyPanel extends JPanel
             server.sendPacket(null,new NetworkPacket(CLIENT_GENERATE_GAME,payload));
 
 
-            //server.sendPacket(null,new NetworkPacket(CLIENT_START_GAME,game));
-
+            //server.sendPacket(null,new NetworkPacket(CLIENT_START_GAME,game)); // no more start_game packet, game starts after generation
 
             game.setServer(server);
             server.spawnPlayers();
+
             game.start();
             game.assumeControl();
             GameTickHandler.loop(game);

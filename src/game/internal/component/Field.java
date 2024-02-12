@@ -265,15 +265,18 @@ public class Field implements Serializable
         onFire = true;
         ArrayList<GameObject> mirror = new ArrayList<>();
 
-        for (GameObject go : gameObjects)
+        synchronized (gameObjects)
         {
-            if (go != source)
+            for (GameObject go : gameObjects)
             {
-                blocked = !go.redirectExplosion();
-                GameObject exploded = go.explode();
-                if ((go.getSolid() && blocked) && exploded == go)
-                    onFire = false;
-                mirror.add(exploded);
+                if (go != source)
+                {
+                    blocked = !go.redirectExplosion();
+                    GameObject exploded = go.explode();
+                    if ((go.getSolid() && blocked) && exploded == go)
+                        onFire = false;
+                    mirror.add(exploded);
+                }
             }
         }
 

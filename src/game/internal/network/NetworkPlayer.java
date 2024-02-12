@@ -4,7 +4,7 @@ import game.internal.component.Color;
 
 import java.io.Serializable;
 
-public class NetworkPlayer implements Serializable
+public class NetworkPlayer extends NetworkObject implements Serializable
 {
     private int id;
     private Color color;

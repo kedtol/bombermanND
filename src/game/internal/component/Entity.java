@@ -53,6 +53,13 @@ public abstract class Entity extends GameObject
                     game.entitySendMovement(this,axis,positive);
                     moveSpeed.restart();
                 }
+                else
+                {
+                    // YOU CANT SEND a KICK PACKET, if player doesn't know if it's performing a kick or not
+                    // -> the bomb should send one
+                    // -> THE SERVER SHOULD DETECT THE kick
+                    // -> one small issue: the collision detection is local (client first)
+                }
             }
         }
     }

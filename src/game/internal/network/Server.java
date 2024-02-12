@@ -10,6 +10,7 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static game.internal.network.NetworkPacketType.*;
 
@@ -324,9 +325,9 @@ public class Server implements NetworkInterface
                 break;
 
                 case SERVER_REQUESTED_BOMB: // bomb place request
-                    UUID payload_1 = (UUID) packet.content;
+                    UUID payload_1 = (UUID) packet.content; // player uuid who requested the bomb
 
-                    Bomb b = game.receiveBomb(payload_1,null);
+                    Bomb b = game.receiveBomb(payload_1,null); // creating a new bomb
                     if (b != null)
                     {
                         Pair<UUID,UUID> payload_1_1 = new Pair<>();
@@ -353,7 +354,7 @@ public class Server implements NetworkInterface
             occupiedColors.add(ne.getColor());
         }
         Random r = new Random();
-        int len = Arrays.stream(Color.values()).filter(c->!occupiedColors.contains(c)).toList().size();
+        int len = Arrays.stream(Color.values()).filter(c->!occupiedColors.contains(c)).collect(Collectors.toList()).size();
         Optional<Color> choosen = Arrays.stream(Color.values()).filter(c->!occupiedColors.contains(c)).skip(r.nextInt(len)).findFirst();
         return choosen.orElse(null);
     }
@@ -367,6 +368,7 @@ public class Server implements NetworkInterface
             {
                 NetworkPlayer np = new NetworkPlayer(Color.AI,"AI",players.size(),true);
                 players.add(np);
+                game.addEnemy(np);
             }
             sendPacket(null,new NetworkPacket(CLIENT_UPDATE_PLAYERLIST,players));
 

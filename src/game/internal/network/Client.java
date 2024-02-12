@@ -179,6 +179,7 @@ public class Client implements NetworkInterface
                 case CLIENT_KILL_ENTITY:
                     UUID np = (UUID) packet.content;
                     game.killEntity(np);
+                    System.out.println("KILL_PACKET");
                 break;
 
                 case CLIENT_EXPLODE_BOMB:
@@ -186,24 +187,37 @@ public class Client implements NetworkInterface
                     game.explodeEntity(np1);
                 break;
 
+                case CLIENT_KICK_BOMB:
+                    Pair<UUID,Pair<Integer,Boolean>> payload_3 = (Pair<UUID,Pair<Integer,Boolean>>)packet.content;
+                    game.kickBomb(payload_3.left,payload_3.right.left,payload_3.right.right);
+                    System.out.println("kciked");
+                break;
             }
+
         }
     }
 
     public void sendPacket(NetworkPacket packet)
     {
         packet.server = false;
-        try
+        if (server != null)
         {
-            OutputStream os = server.getOutputStream();
-            ObjectOutputStream oos = new ObjectOutputStream(os);
+            try
+            {
+                OutputStream os = server.getOutputStream();
+                ObjectOutputStream oos = new ObjectOutputStream(os);
 
-            oos.writeObject(packet);
-            oos.flush();
+                oos.writeObject(packet);
+                oos.flush();
+            }
+            catch (IOException e)
+            {
+
+            }
         }
-        catch (IOException e)
+        else
         {
-
+            System.out.println("Connection lost, but you've tried to send a packet anyway");
         }
     }
 

@@ -460,7 +460,7 @@ public class Game implements Serializable
                         {
                             server.sendPacket(null, new NetworkPacket(CLIENT_KILL_ENTITY, e.networkID));
                         }
-                        //i.remove();
+                        i.remove();
                     }
                     iter++;
                 }
@@ -510,11 +510,12 @@ public class Game implements Serializable
             camera1 = new Camera(player,6,280,300);
 
         map.get(field).acceptGameObject(player,0,false);
+        player.networkID = np.networkID;
         entities.add(player);
         players++;
     }
 
-    public void addEnemy()
+    public void addEnemy(NetworkPlayer ne)
     {
         Random r = new Random(seed);
         int field = 0;
@@ -527,6 +528,8 @@ public class Game implements Serializable
         Enemy enemy = new Enemy(resourceLoader.getImage("player_ai"),"player_ai",map.get(field),this);
         map.get(field).acceptGameObject(enemy,0,false);
         entities.add(enemy);
+        if (ne != null)
+            enemy.networkID = ne.networkID;
         players++;
     }
 
@@ -628,7 +631,7 @@ public class Game implements Serializable
         for (NetworkPlayer ne : nps)
         {
             if (ne.getAI())
-                addEnemy();
+                addEnemy(ne);
             else
             {
                 if (client != null && client.getPlayer().getId() == ne.getId())
@@ -647,12 +650,33 @@ public class Game implements Serializable
         }
         else
         {
-            server.sendPacket(null, new NetworkPacket(CLIENT_PLACE_BOMB, b.networkID));
+            Bomb bomb = receiveBomb(b.networkID,null); // creating a new bomb
+            if (bomb != null)
+            {
+                Pair<UUID,UUID> payload_1_1 = new Pair<>();
+                payload_1_1.left = b.networkID;
+                payload_1_1.right = bomb.networkID;
+                server.sendPacket(null, new NetworkPacket(CLIENT_PLACE_BOMB, payload_1_1));
+            }
+            else
+            {
+                System.out.println(":C");
+            }
+
         }
 
-        if (server != null)
-        {
+        //if (client != null) // full local bomb bag check -> possible vulnerability
+        //{
             b.bombPlaced();
+        //}
+    }
+
+    public void kickBomb(UUID BnetworkID, int axis, boolean positive)
+    {
+        for (Entity e : entities)
+        {
+            if (e.networkID.equals(BnetworkID))
+                e.kick(axis,positive); // WHOA NOT INTENDED, hope it works
         }
     }
 
@@ -704,7 +728,11 @@ public class Game implements Serializable
             for (Entity e : entities)
             {
                 if (e.networkID.equals(networkID))
+                {
+                    //if (server != null && client == null)
+                   //     server.sendPacket(null,new NetworkPacket(CLIENT_KILL_ENTITY,networkID));
                     e.kill();
+                }
             }
         }
     }
@@ -726,5 +754,10 @@ public class Game implements Serializable
     public long getSeed()
     {
         return seed;
+    }
+
+    public Client getClient()
+    {
+        return client;
     }
 }

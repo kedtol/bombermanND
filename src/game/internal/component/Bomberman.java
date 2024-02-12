@@ -21,7 +21,7 @@ public abstract class Bomberman extends Entity
         maxBombs = 1;
         health = 3;
         speed = 8;
-        canKick = false;
+        canKick = true;
         moveSpeed.setStart((int)(1000/speed));
         placedBombs = 0;
     }
@@ -70,6 +70,7 @@ public abstract class Bomberman extends Entity
         {
             //Bomb newBomb = game.createBomb(this);
             game.bombermanSendBomb(this);
+
             //if (newBomb != null)
             //    placedBombs++;
         }
