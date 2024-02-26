@@ -2,9 +2,12 @@ package game.internal.component;
 
 import game.internal.Game;
 import game.internal.network.Client;
+import game.internal.network.NetworkPacket;
 
 import java.awt.image.BufferedImage;
 import java.util.UUID;
+
+import static game.internal.network.NetworkPacketType.CLIENT_KILL_ENTITY;
 
 public abstract class Entity extends GameObject
 {
@@ -30,11 +33,6 @@ public abstract class Entity extends GameObject
     public void setGame(Game game)
     {
         this.game = game;
-    }
-
-    public void setupSync(Client client)
-    {
-        this.client = client;
     }
 
     public void move(int axis, boolean positive)
@@ -125,6 +123,16 @@ public abstract class Entity extends GameObject
     }
 
     public void kill()
+    {
+        if (game.getClient() == null) // THE SERVER SIDE LOGIC
+        {
+            alive = false;
+            field.removeGameObject(this);
+            game.getServer().sendPacket(null, new NetworkPacket(CLIENT_KILL_ENTITY, this.networkID));
+        }
+    }
+
+    public void networkKill() // FOR CLIENTS!
     {
         alive = false;
         field.removeGameObject(this);

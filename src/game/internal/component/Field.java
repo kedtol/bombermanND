@@ -267,8 +267,9 @@ public class Field implements Serializable
 
         synchronized (gameObjects)
         {
-            for (GameObject go : gameObjects)
+            for (int i = 0; i<gameObjects.size();i++)
             {
+                GameObject go = gameObjects.get(i);
                 if (go != source)
                 {
                     blocked = !go.redirectExplosion();
@@ -309,8 +310,11 @@ public class Field implements Serializable
                 if ((positive.explode() != positive || negative.explode() != negative))
                     freeAxis++;
         }
-        if (gameObjects.size() > 0 && gameObjects.get(0).explode() == gameObjects.get(0))
-            freeAxis = 0;
+        synchronized (gameObjects) { //skill issue - gameObject.size can be 0, idk how
+ //           if (gameObjects.size() > 0)
+//                if (gameObjects.get(0).explode() == gameObjects.get(0))
+  //                  freeAxis = 0;
+        }
 
         if (freeAxis > 1)
         {

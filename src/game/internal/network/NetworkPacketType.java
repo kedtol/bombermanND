@@ -24,5 +24,5 @@ public enum NetworkPacketType
     SERVER_REQUESTED_COLOR_CHANGE,
     SERVER_REQUESTED_MOVEMENT, // the given networkPlayer wants to move
     SERVER_REQUESTED_BOMB, // player with UUID wants to place a bomb
-
+    SERVER_REQUESTED_KICK, // a client requested a kick to be synced
 }

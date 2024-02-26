@@ -223,7 +223,7 @@ public class LobbyPanel extends JPanel
             server.spawnPlayers();
 
             game.start();
-            game.assumeControl();
+
             GameTickHandler.loop(game);
 
             //mf.startNewGame(game);

@@ -9,6 +9,7 @@ import java.awt.image.BufferedImage;
 import java.util.UUID;
 
 import static game.internal.network.NetworkPacketType.CLIENT_KICK_BOMB;
+import static game.internal.network.NetworkPacketType.SERVER_REQUESTED_KICK;
 
 public class Bomb extends Entity
 {
@@ -70,24 +71,46 @@ public class Bomb extends Entity
         super.kill();
     }
 
+    public final void networkKill()
+    {
+        for (int i = 0; i < 4; i++)
+            field.initiateExtinguishment(i, explosionSize);
+
+        bomberman.bombExploded();
+        super.networkKill();
+    }
+
     @Override
     public boolean kick(int axis,boolean positive)
     {
-        kicked = true;
+
         this.axis = axis;
         this.positive = positive;
-
-        if (game.getClient() == null) // on SERVER only
+        if (!kicked)
         {
-            Pair<Integer,Boolean> innerPayload = new Pair<>();
-            Pair<UUID,Pair<Integer,Boolean>> outerPayload = new Pair<>();
-            innerPayload.left = axis;
-            innerPayload.right = positive;
-            outerPayload.left = networkID;
-            outerPayload.right = innerPayload;
-            game.getServer().sendPacket(null, new NetworkPacket(CLIENT_KICK_BOMB,outerPayload));
-        }
+            if (game.getClient() == null) // on SERVER only
+            {
+                Pair<Integer,Boolean> innerPayload = new Pair<>();
+                Pair<UUID,Pair<Integer,Boolean>> outerPayload = new Pair<>();
+                innerPayload.left = axis;
+                innerPayload.right = positive;
+                outerPayload.left = networkID;
+                outerPayload.right = innerPayload;
+                //game.getServer().sendPacket(null, new NetworkPacket(CLIENT_KICK_BOMB,outerPayload));
+            }
+            else
+            {
+                Pair<Integer,Boolean> innerPayload = new Pair<>();
+                Pair<UUID,Pair<Integer,Boolean>> outerPayload = new Pair<>();
+                innerPayload.left = axis;
+                innerPayload.right = positive;
+                outerPayload.left = networkID;
+                outerPayload.right = innerPayload;
+                game.getClient().sendPacket(new NetworkPacket(SERVER_REQUESTED_KICK,outerPayload));
 
+            }
+        }
+        kicked = true;
         return true;
     }
 

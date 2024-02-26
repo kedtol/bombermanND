@@ -51,14 +51,19 @@ public class Client implements NetworkInterface
             if (server != null)
             {
                 server.close();
+                server = null;
             }
-            server = null;
+
+            if (game != null)
+                game.kill();
 
             if (receiveThread != null)
-                receiveThread.interrupt();
+            {
+                //receiveThread.interrupt(); // No need to interrupt the thread - the main thread already did that
+                receiveThread = null;
+            }
 
-            receiveThread = null;
-            System.out.println("Client dead");
+            System.out.println("Client: client killed!");
         }
         catch (IOException e)
         {
@@ -150,7 +155,8 @@ public class Client implements NetworkInterface
                 break;
 
                 case CLIENT_MOVE: // spawn player
-                    Pair<Integer, Pair<Integer,Boolean>> payload_0 = (Pair<Integer, Pair<Integer,Boolean>>) packet.content;
+                    // UUID, axis, positive
+                    Pair<UUID, Pair<Integer,Boolean>> payload_0 = (Pair<UUID, Pair<Integer,Boolean>>) packet.content;
                     game.entityReceiveMovement(payload_0.left,payload_0.right.left,payload_0.right.right);
                 break;
 
@@ -159,27 +165,9 @@ public class Client implements NetworkInterface
                     game.receiveBomb(payload_1.left,payload_1.right);
                 break;
 
-                case CLIENT_UPDATE_ENTITYLIST:
-                    List<Entity> payload_2 = (List<Entity>) packet.content;
-                    game.updateEntityList(payload_2);
-                break;
-
-                case CLIENT_UPDATE_GAME:
-                    game = (Game) packet.content;
-                    game.setClient(this);
-                    game.setServer(null);
-                    mf.startNewGame(game);
-                    game.assumeControl();
-                break;
-
-                case CLIENT_PLACE_POWERUP:
-                    game.placePowerUp((PowerUp)packet.content);
-                break;
-
                 case CLIENT_KILL_ENTITY:
                     UUID np = (UUID) packet.content;
                     game.killEntity(np);
-                    System.out.println("KILL_PACKET");
                 break;
 
                 case CLIENT_EXPLODE_BOMB:
@@ -190,7 +178,6 @@ public class Client implements NetworkInterface
                 case CLIENT_KICK_BOMB:
                     Pair<UUID,Pair<Integer,Boolean>> payload_3 = (Pair<UUID,Pair<Integer,Boolean>>)packet.content;
                     game.kickBomb(payload_3.left,payload_3.right.left,payload_3.right.right);
-                    System.out.println("kciked");
                 break;
             }
 
@@ -217,7 +204,7 @@ public class Client implements NetworkInterface
         }
         else
         {
-            System.out.println("Connection lost, but you've tried to send a packet anyway");
+            // packet for a null server?
         }
     }
 

@@ -38,7 +38,7 @@ public class Enemy extends Bomberman
     public void tickAction()
     {
         if (game != null && game.getServer() != null)
-            ai();
+           ai();
 
         super.tickAction();
     }

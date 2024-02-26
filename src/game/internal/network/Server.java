@@ -9,6 +9,7 @@ import game.internal.component.FieldPair;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -48,11 +49,11 @@ public class Server implements NetworkInterface
         try
         {
             dead = true;
-            for (Thread t : receiveThreads)
-            {
-                if (t != null)
-                {
-                    t.interrupt();
+            if (receiveThreads != null) {
+                for (Thread t : receiveThreads) {
+                    if (t != null) {
+                        t.interrupt();
+                    }
                 }
             }
             receiveThreads = null;
@@ -71,6 +72,9 @@ public class Server implements NetworkInterface
 
             if (serverSocket != null)
                 serverSocket.close();
+
+            if (game != null)
+                game.kill();
 
             clients.clear();
             serverSocket = null;
@@ -155,7 +159,7 @@ public class Server implements NetworkInterface
         }
     }
 
-    private void greetClients() throws IOException
+    private void greetClients() throws IOException //only used for testing
     {
         int i = 0;
         for (Socket c : clients)
@@ -202,7 +206,7 @@ public class Server implements NetworkInterface
 
     }
 
-    public void receivePacketsFromClient(int id)
+    public void receivePacketsFromClient(int id) //receive thread handler
     {
         if (receiveThreads != null)
         {
@@ -230,6 +234,10 @@ public class Server implements NetworkInterface
                                         packet.source = id;
                                         packetInterpreter(packet);
                                     }
+                                }
+                                catch (SocketException e)
+                                {
+                                    System.out.println("Server: server closed!");
                                 }
                                 catch (IOException | ClassNotFoundException e)
                                 {
@@ -267,7 +275,7 @@ public class Server implements NetworkInterface
             clients.remove(c);
             receiveThreads.get(id).interrupt();
             receiveThreads.set(id,null);
-            System.out.println("killed connection: "+id);
+            System.out.println("Server: Killed connection: "+id);
         }
     }
 
@@ -288,8 +296,8 @@ public class Server implements NetworkInterface
                     np = players.get(packet.source);
                     players.remove(np);
                     sendPacket(null,new NetworkPacket(CLIENT_UPDATE_PLAYERLIST,players));
-                    if (game != null)
-                        kill();
+                    //if (game != null) //stop the session when a client disconnects
+                    //    kill();
                 break;
 
                 case SERVER_ACCEPT_NEW_CLIENT: // joining introduction
@@ -317,7 +325,8 @@ public class Server implements NetworkInterface
                 break;
 
                 case SERVER_REQUESTED_MOVEMENT: // movement request
-                    Pair<Integer, Pair<Integer,Boolean>> payload = (Pair<Integer, Pair<Integer,Boolean>>) packet.content;
+                    // UUID, axis, positive
+                    Pair<UUID, Pair<Integer,Boolean>> payload = (Pair<UUID, Pair<Integer,Boolean>>) packet.content;
                     for (int i = 0; i < clients.size(); i++)
                         if (i != packet.source)
                             sendPacket(clients.get(i),new NetworkPacket(CLIENT_MOVE,payload));
@@ -336,6 +345,16 @@ public class Server implements NetworkInterface
                         sendPacket(null, new NetworkPacket(CLIENT_PLACE_BOMB, payload_1_1));
                     }
                 break;
+
+                case SERVER_REQUESTED_KICK: // kick request
+                    // UUID, axis, positive
+                    Pair<UUID,Pair<Integer,Boolean>> payload_3 = (Pair<UUID,Pair<Integer,Boolean>>)packet.content;
+                    for (int i = 0; i < clients.size(); i++)
+                        if (i != packet.source)
+                            sendPacket(clients.get(i),new NetworkPacket(CLIENT_KICK_BOMB,payload_3));
+                    game.kickBomb(payload_3.left,payload_3.right.left,payload_3.right.right);
+                break;
+
             }
         }
     }

@@ -31,12 +31,6 @@ public class Player extends Bomberman
         this.binds = binds;
     }
 
-    public void setupSync(Client client)
-    {
-        super.setupSync(client);
-        game.requestControl(this);
-    }
-
     public NetworkPlayer getNp()
     {
         return np;

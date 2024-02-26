@@ -62,7 +62,6 @@ public class GamePanel extends JPanel implements ActionListener
         {
             setGame(null);
             NetworkThreadHandler.killNetworkInterfaces();
-
             mf.changePanels(mPanel);
         }
     }

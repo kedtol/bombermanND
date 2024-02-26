@@ -21,7 +21,7 @@ public abstract class Bomberman extends Entity
         maxBombs = 1;
         health = 3;
         speed = 8;
-        canKick = true;
+        canKick = false;
         moveSpeed.setStart((int)(1000/speed));
         placedBombs = 0;
     }
@@ -54,12 +54,14 @@ public abstract class Bomberman extends Entity
 
     public GameObject explode() //-bomba szekvenciaszál-
     {
-        health--;
-
-        if (health <= 0)
+        if (game.getServer() != null && game.getClient() == null)
         {
-            kill();
-            return null;
+            health--;
+            if (health <= 0)
+            {
+                kill();
+                return null;
+            }
         }
 
         return this;
@@ -106,12 +108,16 @@ public abstract class Bomberman extends Entity
     @Override
     public void onFieldEntry()
     {
-        if (field.onFire())
-            health--;
-        if (health <= 0)
+        if (game.getServer() != null && game.getClient() == null)
         {
-            kill();
-            field.removeGameObject(this);
+            if (field.onFire())
+                health--;
+
+            if (health <= 0)
+            {
+                kill();
+                field.removeGameObject(this);
+            }
         }
     }
 
@@ -125,4 +131,11 @@ public abstract class Bomberman extends Entity
     {
         return null;
     }
+
+    @Override
+    public void networkKill() {
+        super.networkKill();
+    }
 }
+
+

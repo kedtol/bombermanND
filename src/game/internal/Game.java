@@ -34,14 +34,21 @@ public class Game implements Serializable
     private transient long seed = 0;
     private transient Server server = null;
     private transient Client client = null;
-
-    private transient ArrayList<PowerUp> storedPowerUps = new ArrayList<>();
-
-    private transient ArrayList<Field> requestedPowerUps = new ArrayList<>();
+    private boolean killed = false;
 
     public Game()
     {
         softInit();
+    }
+
+    public void kill()
+    {
+        killed = true;
+    }
+
+    public boolean isKilled()
+    {
+        return killed;
     }
 
     public void softInit()
@@ -49,13 +56,11 @@ public class Game implements Serializable
         client = null;
         server = null;
         entities = Collections.synchronizedList(new ArrayList<>());
-        requestedPowerUps = new ArrayList<>();
         resourceLoader = new ResourceLoader();
         InputHandler inputHandler = new InputHandler();
         inputHandler.bindSetup();
         resourceLoader.loadTextures();
 
-        storedPowerUps = new ArrayList<>();
         powerUps = new ArrayList<>();
         powerUpKeys = new ArrayList<>();
 
@@ -67,8 +72,6 @@ public class Game implements Serializable
 
         for (String k: powerUpKeys)
             powerUps.add( resourceLoader.getImage(k));
-
-
 
     }
 
@@ -91,8 +94,7 @@ public class Game implements Serializable
     }
 
     @Serial
-    private void writeObject(ObjectOutputStream oos)
-            throws IOException {
+    private void writeObject(ObjectOutputStream oos) throws IOException {
         oos.defaultWriteObject();
         oos.writeObject(map);
         oos.writeObject(entities);
@@ -104,8 +106,7 @@ public class Game implements Serializable
 
     }
 
-    private void readObject(ObjectInputStream ois)
-            throws ClassNotFoundException, IOException {
+    private void readObject(ObjectInputStream ois) throws ClassNotFoundException, IOException {
         softInit();
         ois.defaultReadObject();
         map = (ArrayList<Field>) ois.readObject();
@@ -430,19 +431,6 @@ public class Game implements Serializable
         // a bomba száláról a bomberman eldönti, hogy halott, majd a saját szálán megöli magát.
         if (gameStarted)
         {
-            if (storedPowerUps.size() > 0)
-            {
-                if (requestedPowerUps.size() > 0)
-                {
-                    if (storedPowerUps.get(0) != null)
-                    {
-                        requestedPowerUps.get(0).addGameObject(storedPowerUps.get(0));
-                        requestedPowerUps.get(0).getGameObjects().forEach(g -> g.setImage(resourceLoader));
-                    }
-                    requestedPowerUps.remove(0);
-                    storedPowerUps.remove(0);
-                }
-            }
 
             int iter = 0;
             synchronized (entities)
@@ -458,10 +446,12 @@ public class Game implements Serializable
                     {
                         if (client == null)
                         {
-                            server.sendPacket(null, new NetworkPacket(CLIENT_KILL_ENTITY, e.networkID));
+                            //server.sendPacket(null, new NetworkPacket(CLIENT_KILL_ENTITY, e.networkID));
                         }
+
                         i.remove();
                     }
+
                     iter++;
                 }
 
@@ -581,39 +571,14 @@ public class Game implements Serializable
             server.setGame(this);
 
     }
-    public void assumeControl()
-    {
-        for (Entity e : entities)
-        {
-            e.setupSync(client);
-            //e.getField().addGameObject(e);
-
-        }
-
-        for (Field field : map)
-        {
-            field.getGameObjects().forEach(g-> g.setImage(resourceLoader));
-        }
-    }
-    public void requestControl(Player p)
-    {
-        if (client != null)
-        {
-            if (p.getNp().getId() == client.getPlayer().getId())
-            {
-                camera1.setBomberman(p);
-                p.setBinds(new ArrayList<>(Arrays.asList(Bind.UP, Bind.DOWN, Bind.LEFT, Bind.RIGHT, Bind.PLANT, Bind.ROTATE)));
-            }
-        }
-    }
 
     public void entitySendMovement(Entity e,int axis,boolean positive)
     {
         Pair<Integer,Boolean> innerpayload = new Pair<>();
         innerpayload.left = axis;
         innerpayload.right = positive;
-        Pair<Integer, Pair<Integer,Boolean>> payload = new Pair<>();
-        payload.left = entities.indexOf(e);
+        Pair<UUID, Pair<Integer,Boolean>> payload = new Pair<>();
+        payload.left = e.networkID;
         payload.right = innerpayload;
         if (client != null)
             client.sendPacket(new NetworkPacket(SERVER_REQUESTED_MOVEMENT,payload));
@@ -621,9 +586,16 @@ public class Game implements Serializable
             server.sendPacket(null,new NetworkPacket(CLIENT_MOVE,payload));
     }
 
-    public void entityReceiveMovement(int e,int axis,boolean positive)
+    public void entityReceiveMovement(UUID networkEntity,int axis,boolean positive)
     {
-        entities.get(e).moveNetwork(axis,positive);
+        synchronized (entities)
+        {
+            for (Entity e : entities)
+            {
+                if (e.networkID.equals(networkEntity))
+                    e.moveNetwork(axis, positive);
+            }
+        }
     }
 
     public void spawnPlayers(ArrayList<NetworkPlayer> nps)
@@ -660,7 +632,7 @@ public class Game implements Serializable
             }
             else
             {
-                System.out.println(":C");
+                System.out.println("Couldn't create BOMB - could be a desync issue");
             }
 
         }
@@ -673,52 +645,32 @@ public class Game implements Serializable
 
     public void kickBomb(UUID BnetworkID, int axis, boolean positive)
     {
-        for (Entity e : entities)
+        synchronized (entities)
         {
-            if (e.networkID.equals(BnetworkID))
-                e.kick(axis,positive); // WHOA NOT INTENDED, hope it works
+            for (Entity e : entities)
+            {
+                if (e.networkID.equals(BnetworkID))
+                    e.kick(axis,positive); // WHOA NOT INTENDED, hope it works
+            }
         }
     }
 
     public Bomb receiveBomb(UUID BMnetworkID, UUID BnetworkID)
     {
-        for (Entity e : entities)
+        synchronized(entities)
         {
-            if (e.networkID.equals(BMnetworkID))
-                return createBomb((Bomberman) e,BnetworkID); // TODO: remove casting
+            for (Entity e : entities)
+            {
+                if (e.networkID.equals(BMnetworkID))
+                    return createBomb((Bomberman) e,BnetworkID); // TODO: remove casting
+            }
         }
         return null;
     }
 
-    public void updateEntityList(List<Entity> entities)
-    {
-        this.entities = entities;
-    }
-
-
     public Server getServer()
     {
         return server;
-    }
-
-    public void addRequestedPowerUp(Field field)
-    {
-        requestedPowerUps.add(field);
-    }
-
-    public void placePowerUp(PowerUp content)
-    {
-        if (requestedPowerUps.size() > 0)
-        {
-            if (content != null)
-            {
-                requestedPowerUps.get(0).addGameObject(content);
-                requestedPowerUps.get(0).getGameObjects().forEach(g-> g.setImage(resourceLoader));
-                requestedPowerUps.remove(0);
-            }
-        }
-        else
-            storedPowerUps.add(content);
     }
 
     public void killEntity(UUID networkID)
@@ -731,7 +683,7 @@ public class Game implements Serializable
                 {
                     //if (server != null && client == null)
                    //     server.sendPacket(null,new NetworkPacket(CLIENT_KILL_ENTITY,networkID));
-                    e.kill();
+                    e.networkKill();
                 }
             }
         }
@@ -739,10 +691,13 @@ public class Game implements Serializable
 
     public void explodeEntity(UUID networkID)
     {
-        for (Entity e : entities)
+        synchronized (entities)
         {
-            if (e.networkID.equals(networkID))
-                e.explode();
+            for (Entity e : entities)
+            {
+                if (e.networkID.equals(networkID))
+                    e.explode();
+            }
         }
     }
 
@@ -760,4 +715,5 @@ public class Game implements Serializable
     {
         return client;
     }
+
 }
